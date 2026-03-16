@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# DuckDB - base de dados local
+*.duckdb
+*.duckdb.wal
+
+# Ficheiros de ambiente
+.env
+
+# Pasta de uploads e stickers gerados pela app
+assets/uploads/
+assets/stickers/
+
+# VSCode
+.vscode/
+
+# Windows
+Thumbs.db
+desktop.ini
