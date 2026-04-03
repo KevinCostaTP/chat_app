@@ -33,9 +33,10 @@ def ChatView(page: ft.Page, current_user, current_room):
         on_submit=lambda e: send_message(e),
     )
 
-    def on_message_received(message):
+    def on_message_received(topic, message):
         """
         Chamada pelo PubSub quando chega mensagem NESTA sala.
+        O 'topic' é o id da sala — não usamos mas o Flet passa-o sempre.
         """
         messages_list.controls.append(
             MessageBubble(message, current_user)
