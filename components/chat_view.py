@@ -6,15 +6,29 @@ from components.message_bubble import MessageBubble
 from services import pubsub_service
 
 
-def ChatView(page: ft.Page, current_user, current_room):
+def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
     """
-    A vista principal do chat — adaptada para suportar salas.
+    Vista do chat — suporta salas normais e conversas privadas.
 
     Parâmetros:
-        page         - a página Flet
-        current_user - objeto User do utilizador atual
-        current_room - objeto Room da sala atual
+        current_room  - objeto Room (se for sala normal)
+        private_user  - dict com {username, avatar_color} (se for conversa privada)
+
+    Um dos dois deve ser fornecido — nunca os dois ao mesmo tempo.
     """
+
+    # Determina se é conversa privada ou sala
+    is_private = private_user is not None
+
+    if is_private:
+        topic = pubsub_service.get_private_topic(
+            current_user.username,
+            private_user["username"]
+        )
+        chat_name = private_user["username"]
+    else:
+        topic = current_room.id
+        chat_name = current_room.name
 
     messages_list = ft.ListView(
         expand=1,
@@ -23,7 +37,11 @@ def ChatView(page: ft.Page, current_user, current_room):
     )
 
     new_message = ft.TextField(
-        hint_text=f"Mensagem em #{current_room.name}...",
+        hint_text=(
+            f"Mensagem privada para {chat_name}..."
+            if is_private
+            else f"Mensagem em #{chat_name}..."
+        ),
         expand=True,
         shift_enter=True,
         min_lines=1,
@@ -34,10 +52,6 @@ def ChatView(page: ft.Page, current_user, current_room):
     )
 
     def on_message_received(topic, message):
-        """
-        Chamada pelo PubSub quando chega mensagem NESTA sala.
-        O 'topic' é o id da sala — não usamos mas o Flet passa-o sempre.
-        """
         messages_list.controls.append(
             MessageBubble(message, current_user)
         )
@@ -50,25 +64,30 @@ def ChatView(page: ft.Page, current_user, current_room):
         msg = Message(
             username=current_user.username,
             text=new_message.value.strip(),
-            room_id=current_room.id,
+            room_id=topic,
         )
 
-        # Envia só para esta sala
-        pubsub_service.broadcast_to_room(page, current_room.id, msg)
+        if is_private:
+            pubsub_service.broadcast_to_private(page, topic, msg)
+        else:
+            pubsub_service.broadcast_to_room(page, topic, msg)
 
         new_message.value = ""
         page.update()
 
-    # Subscreve ao tópico desta sala
-    pubsub_service.subscribe_to_room(page, current_room.id, on_message_received)
+    # Subscreve ao tópico correto
+    if is_private:
+        pubsub_service.subscribe_to_private(page, topic, on_message_received)
+    else:
+        pubsub_service.subscribe_to_room(page, topic, on_message_received)
 
-    # Avisa a sala que este utilizador entrou
-    pubsub_service.broadcast_to_room(page, current_room.id, Message(
-        username=current_user.username,
-        text=f"{current_user.username} entrou em #{current_room.name} 👋",
-        room_id=current_room.id,
-        msg_type="login",
-    ))
+        # Avisa a sala que entrou (só em salas, não em privado)
+        pubsub_service.broadcast_to_room(page, topic, Message(
+            username=current_user.username,
+            text=f"{current_user.username} entrou em #{chat_name} 👋",
+            room_id=topic,
+            msg_type="login",
+        ))
 
     send_button = ft.IconButton(
         icon=ft.Icons.SEND,
@@ -77,17 +96,48 @@ def ChatView(page: ft.Page, current_user, current_room):
         on_click=send_message,
     )
 
-    header = ft.Container(
-        content=ft.Row(
+    # Cabeçalho diferente para sala vs privado
+    if is_private:
+        header_content = ft.Row(
             controls=[
-                ft.Icon(ft.Icons.TAG, color=ft.Colors.BLUE_600),
-                ft.Text(
-                    current_room.name,
-                    size=16,
-                    weight=ft.FontWeight.BOLD,
+                ft.CircleAvatar(
+                    content=ft.Text(
+                        private_user["username"][0].upper(),
+                        color=ft.Colors.WHITE,
+                        size=14,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                    bgcolor=private_user["avatar_color"],
+                    radius=16,
+                ),
+                ft.Column(
+                    controls=[
+                        ft.Text(
+                            private_user["username"],
+                            size=15,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                        ft.Text(
+                            "Mensagem direta",
+                            size=11,
+                            color=ft.Colors.GREY_500,
+                        ),
+                    ],
+                    spacing=0,
                 ),
             ],
-        ),
+            spacing=10,
+        )
+    else:
+        header_content = ft.Row(
+            controls=[
+                ft.Icon(ft.Icons.TAG, color=ft.Colors.BLUE_600),
+                ft.Text(chat_name, size=16, weight=ft.FontWeight.BOLD),
+            ],
+        )
+
+    header = ft.Container(
+        content=header_content,
         padding=ft.padding.symmetric(vertical=12, horizontal=16),
         bgcolor=ft.Colors.SURFACE,
     )

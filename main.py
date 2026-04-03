@@ -6,7 +6,7 @@ from models.user import User
 from models.room import Room
 from components.chat_view import ChatView
 from components.sidebar import Sidebar
-from services import db_service
+from services import db_service, pubsub_service
 
 
 AVATAR_COLORS = [
@@ -37,54 +37,81 @@ def main(page: ft.Page):
             avatar_color=random.choice(AVATAR_COLORS),
         )
 
-        # Carrega a sala Geral como sala inicial
         rooms = db_service.get_all_rooms()
-        current_room = rooms[0]  # primeira sala = Geral
+        current_room_ref = [rooms[0]]
+        current_private_ref = [None]
 
-        # Referência mutável à sala atual
-        # Usamos uma lista com um elemento para poder modificar dentro das funções
-        room_ref = [current_room]
+        def rebuild_layout(room=None, private_user=None):
+            """
+            Reconstrói o layout completo.
+            room         - objeto Room se for sala normal
+            private_user - dict {username, avatar_color} se for privado
+            """
+            # Cancela subscrições anteriores do chat
+            if current_room_ref[0] is not None:
+                pubsub_service.unsubscribe_from_room(page, current_room_ref[0].id)
+            if current_private_ref[0] is not None:
+                old_topic = pubsub_service.get_private_topic(
+                    user.username,
+                    current_private_ref[0]["username"]
+                )
+                pubsub_service.unsubscribe_from_room(page, old_topic)
 
-        # Container do chat que vai ser substituído ao mudar de sala
-        chat_container = ft.Container(expand=True)
+            current_room_ref[0] = room
+            current_private_ref[0] = private_user
 
-        def build_chat(room):
-            """Constrói a vista do chat para a sala indicada."""
-            # Cancela a subscrição da sala anterior
-            if room_ref[0].id != room.id:
-                pubsub_service_unsubscribe(room_ref[0].id)
-
-            room_ref[0] = room
-            chat_container.content = ChatView(page, user, room)
-            page.update()
-
-        def pubsub_service_unsubscribe(room_id):
-            page.pubsub.unsubscribe_topic(room_id)
-
-        def on_room_change(room):
-            """Chamada pelo Sidebar quando o utilizador clica numa sala."""
-            build_chat(room)
-            # Reconstrói o layout para atualizar o sidebar
-            rebuild_layout(user, room)
-
-        def rebuild_layout(user, room):
-            """Reconstrói o layout completo com o sidebar atualizado."""
             page.clean()
             page.vertical_alignment = ft.MainAxisAlignment.START
 
-            sidebar = Sidebar(page, user, room, on_room_change)
-            chat_view = ChatView(page, user, room)
+            if private_user:
+                chat = ChatView(page, user, private_user=private_user)
+            else:
+                chat = ChatView(page, user, current_room=room)
+
+            sidebar = Sidebar(
+                page=page,
+                current_user=user,
+                current_room=room,
+                on_room_change=on_room_change,
+                on_private_chat=on_private_chat,
+            )
 
             page.add(
                 ft.Row(
-                    controls=[sidebar, ft.Container(content=chat_view, expand=True)],
+                    controls=[
+                        sidebar,
+                        ft.Container(content=chat, expand=True),
+                    ],
                     expand=True,
                     spacing=0,
                 )
             )
 
-        # Constrói o layout inicial
-        rebuild_layout(user, current_room)
+        def on_room_change(room):
+            rebuild_layout(room=room)
+
+        def on_private_chat(username, avatar_color):
+            rebuild_layout(private_user={
+                "username": username,
+                "avatar_color": avatar_color,
+            })
+
+        # Regista o utilizador como online
+        pubsub_service.user_join(
+            user.username,
+            user.avatar_color,
+            page,
+            lambda users: None,
+        )
+
+        # Quando a página fecha, remove o utilizador
+        def on_disconnect(e):
+            pubsub_service.user_leave(user.username, page)
+
+        page.on_close = on_disconnect
+
+        # Constrói o layout inicial com a sala Geral
+        rebuild_layout(room=rooms[0])
 
     username_field = ft.TextField(
         label="O teu nome",
@@ -124,7 +151,5 @@ def main(page: ft.Page):
     )
 
 
-# Inicializa a base de dados antes de arrancar
 db_service.init_db()
-
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8080)
