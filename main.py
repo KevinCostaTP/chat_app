@@ -3,10 +3,9 @@
 import flet as ft
 import random
 from models.user import User
-from models.room import Room
 from components.chat_view import ChatView
 from components.sidebar import Sidebar
-from services import db_service, pubsub_service
+from services import db_service, pubsub_service, file_service
 
 
 AVATAR_COLORS = [
@@ -26,6 +25,11 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 0
 
+    # FilePicker adicionado ao overlay UMA VEZ e nunca removido
+    file_picker = ft.FilePicker()
+    
+    
+
     def show_chat(e):
         if not username_field.value.strip():
             username_field.error_text = "Escolhe um nome para continuar"
@@ -42,12 +46,6 @@ def main(page: ft.Page):
         current_private_ref = [None]
 
         def rebuild_layout(room=None, private_user=None):
-            """
-            Reconstrói o layout completo.
-            room         - objeto Room se for sala normal
-            private_user - dict {username, avatar_color} se for privado
-            """
-            # Cancela subscrições anteriores do chat
             if current_room_ref[0] is not None:
                 pubsub_service.unsubscribe_from_room(page, current_room_ref[0].id)
             if current_private_ref[0] is not None:
@@ -60,13 +58,14 @@ def main(page: ft.Page):
             current_room_ref[0] = room
             current_private_ref[0] = private_user
 
-            page.clean()
+            # Limpa só os controls da página, NÃO o overlay
+            page.controls.clear()
             page.vertical_alignment = ft.MainAxisAlignment.START
 
             if private_user:
-                chat = ChatView(page, user, private_user=private_user)
+                chat = ChatView(page, user, private_user=private_user, file_picker=file_picker)
             else:
-                chat = ChatView(page, user, current_room=room)
+                chat = ChatView(page, user, current_room=room, file_picker=file_picker)
 
             sidebar = Sidebar(
                 page=page,
@@ -76,7 +75,7 @@ def main(page: ft.Page):
                 on_private_chat=on_private_chat,
             )
 
-            page.add(
+            page.controls.append(
                 ft.Row(
                     controls=[
                         sidebar,
@@ -86,6 +85,7 @@ def main(page: ft.Page):
                     spacing=0,
                 )
             )
+            page.update()
 
         def on_room_change(room):
             rebuild_layout(room=room)
@@ -96,7 +96,6 @@ def main(page: ft.Page):
                 "avatar_color": avatar_color,
             })
 
-        # Regista o utilizador como online
         pubsub_service.user_join(
             user.username,
             user.avatar_color,
@@ -104,13 +103,10 @@ def main(page: ft.Page):
             lambda users: None,
         )
 
-        # Quando a página fecha, remove o utilizador
         def on_disconnect(e):
             pubsub_service.user_leave(user.username, page)
 
         page.on_close = on_disconnect
-
-        # Constrói o layout inicial com a sala Geral
         rebuild_layout(room=rooms[0])
 
     username_field = ft.TextField(
@@ -122,7 +118,7 @@ def main(page: ft.Page):
         on_submit=show_chat,
     )
 
-    page.add(
+    page.controls.append(
         ft.Column(
             controls=[
                 ft.Icon(ft.Icons.CHAT, size=72, color=ft.Colors.BLUE_600),
@@ -149,7 +145,9 @@ def main(page: ft.Page):
             spacing=12,
         )
     )
+    page.update()
 
 
 db_service.init_db()
+file_service.ensure_uploads_dir()
 ft.run(main, view=ft.AppView.WEB_BROWSER, port=8080)

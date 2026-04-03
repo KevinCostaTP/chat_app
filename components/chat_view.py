@@ -3,21 +3,11 @@
 import flet as ft
 from models.message import Message
 from components.message_bubble import MessageBubble
-from services import pubsub_service
+from services import pubsub_service, file_service
 
 
-def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
-    """
-    Vista do chat — suporta salas normais e conversas privadas.
+def ChatView(page: ft.Page, current_user, current_room=None, private_user=None, file_picker=None):
 
-    Parâmetros:
-        current_room  - objeto Room (se for sala normal)
-        private_user  - dict com {username, avatar_color} (se for conversa privada)
-
-    Um dos dois deve ser fornecido — nunca os dois ao mesmo tempo.
-    """
-
-    # Determina se é conversa privada ou sala
     is_private = private_user is not None
 
     if is_private:
@@ -57,14 +47,17 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
         )
         page.update()
 
-    def send_message(e):
-        if not new_message.value.strip():
+    def send_message(e, file_path=None):
+        text = new_message.value.strip()
+
+        if not text and not file_path:
             return
 
         msg = Message(
             username=current_user.username,
-            text=new_message.value.strip(),
+            text=text,
             room_id=topic,
+            file_path=file_path,
         )
 
         if is_private:
@@ -75,19 +68,26 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
         new_message.value = ""
         page.update()
 
-    # Subscreve ao tópico correto
-    if is_private:
-        pubsub_service.subscribe_to_private(page, topic, on_message_received)
-    else:
-        pubsub_service.subscribe_to_room(page, topic, on_message_received)
+    def on_file_picked(e):
+        if not e.files:
+            return
 
-        # Avisa a sala que entrou (só em salas, não em privado)
-        pubsub_service.broadcast_to_room(page, topic, Message(
-            username=current_user.username,
-            text=f"{current_user.username} entrou em #{chat_name} 👋",
-            room_id=topic,
-            msg_type="login",
-        ))
+        picked_file = e.files[0]
+        saved_path = file_service.save_file(picked_file.path)
+
+        if saved_path:
+            send_message(None, file_path=saved_path)
+        else:
+            page.snack_bar = ft.SnackBar(
+                content=ft.Text("Erro ao enviar ficheiro. Tenta novamente."),
+                bgcolor=ft.Colors.RED_400,
+            )
+            page.snack_bar.open = True
+            page.update()
+
+  
+  
+    file_picker.on_result = on_file_picked
 
     send_button = ft.IconButton(
         icon=ft.Icons.SEND,
@@ -96,7 +96,16 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
         on_click=send_message,
     )
 
-    # Cabeçalho diferente para sala vs privado
+    attach_button = ft.IconButton(
+        icon=ft.Icons.ATTACH_FILE,
+        icon_color=ft.Colors.GREY_600,
+        tooltip="Enviar ficheiro",
+        on_click=lambda e: file_picker.pick_files(
+            dialog_title="Escolhe um ficheiro",
+            allow_multiple=False,
+        ),
+    )
+
     if is_private:
         header_content = ft.Row(
             controls=[
@@ -144,11 +153,22 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None):
 
     input_bar = ft.Container(
         content=ft.Row(
-            controls=[new_message, send_button],
-            spacing=8,
+            controls=[attach_button, new_message, send_button],
+            spacing=4,
         ),
         padding=ft.padding.symmetric(vertical=8, horizontal=12),
     )
+
+    if is_private:
+        pubsub_service.subscribe_to_private(page, topic, on_message_received)
+    else:
+        pubsub_service.subscribe_to_room(page, topic, on_message_received)
+        pubsub_service.broadcast_to_room(page, topic, Message(
+            username=current_user.username,
+            text=f"{current_user.username} entrou em #{chat_name} 👋",
+            room_id=topic,
+            msg_type="login",
+        ))
 
     return ft.Column(
         controls=[

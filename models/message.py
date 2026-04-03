@@ -11,17 +11,18 @@ class Message:
     Representa uma mensagem enviada no chat.
 
     Atributos:
-        username  - quem enviou a mensagem
-        text      - o conteúdo da mensagem
-        room_id   - em que sala foi enviada (por defeito "geral")
-        msg_type  - "chat" para mensagens normais, "login" para avisos de entrada
-        id        - identificador único gerado automaticamente
-        timestamp - quando foi enviada, gerado automaticamente
+        username  - quem enviou
+        text      - conteúdo de texto (pode ser vazio se for só ficheiro)
+        room_id   - sala ou tópico privado
+        msg_type  - "chat" ou "login"
+        file_path - caminho do ficheiro enviado (None se não houver)
+        id        - identificador único
+        timestamp - quando foi enviada
     """
-
     username: str
     text: str
     room_id: str = "geral"
     msg_type: str = "chat"
+    file_path: str = None        # novo campo para ficheiros
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
