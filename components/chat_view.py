@@ -6,7 +6,15 @@ from components.message_bubble import MessageBubble
 from services import pubsub_service
 
 
-def ChatView(page: ft.Page, current_user):
+def ChatView(page: ft.Page, current_user, current_room):
+    """
+    A vista principal do chat — adaptada para suportar salas.
+
+    Parâmetros:
+        page         - a página Flet
+        current_user - objeto User do utilizador atual
+        current_room - objeto Room da sala atual
+    """
 
     messages_list = ft.ListView(
         expand=1,
@@ -15,7 +23,7 @@ def ChatView(page: ft.Page, current_user):
     )
 
     new_message = ft.TextField(
-        hint_text="Escreve uma mensagem...",
+        hint_text=f"Mensagem em #{current_room.name}...",
         expand=True,
         shift_enter=True,
         min_lines=1,
@@ -26,6 +34,9 @@ def ChatView(page: ft.Page, current_user):
     )
 
     def on_message_received(message):
+        """
+        Chamada pelo PubSub quando chega mensagem NESTA sala.
+        """
         messages_list.controls.append(
             MessageBubble(message, current_user)
         )
@@ -38,17 +49,23 @@ def ChatView(page: ft.Page, current_user):
         msg = Message(
             username=current_user.username,
             text=new_message.value.strip(),
+            room_id=current_room.id,
         )
 
-        pubsub_service.broadcast(page, msg)
+        # Envia só para esta sala
+        pubsub_service.broadcast_to_room(page, current_room.id, msg)
+
         new_message.value = ""
         page.update()
 
-    pubsub_service.subscribe(page, on_message_received)
+    # Subscreve ao tópico desta sala
+    pubsub_service.subscribe_to_room(page, current_room.id, on_message_received)
 
-    pubsub_service.broadcast(page, Message(
+    # Avisa a sala que este utilizador entrou
+    pubsub_service.broadcast_to_room(page, current_room.id, Message(
         username=current_user.username,
-        text=f"{current_user.username} entrou no chat 👋",
+        text=f"{current_user.username} entrou em #{current_room.name} 👋",
+        room_id=current_room.id,
         msg_type="login",
     ))
 
@@ -62,23 +79,11 @@ def ChatView(page: ft.Page, current_user):
     header = ft.Container(
         content=ft.Row(
             controls=[
-                ft.Icon(ft.Icons.CHAT, color=ft.Colors.BLUE_600),
-                ft.Text("Sala Geral", size=16, weight=ft.FontWeight.BOLD),
-                ft.Container(expand=True),
-                ft.CircleAvatar(
-                    content=ft.Text(
-                        current_user.username[0].upper(),
-                        color=ft.Colors.WHITE,
-                        size=14,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    bgcolor=current_user.avatar_color,
-                    radius=16,
-                ),
+                ft.Icon(ft.Icons.TAG, color=ft.Colors.BLUE_600),
                 ft.Text(
-                    current_user.username,
-                    size=13,
-                    color=ft.Colors.GREY_600,
+                    current_room.name,
+                    size=16,
+                    weight=ft.FontWeight.BOLD,
                 ),
             ],
         ),
