@@ -1,40 +1,55 @@
 # services/pubsub_service.py
 
-# Este ficheiro centraliza toda a lógica de comunicação em tempo real.
-# O PubSub é o sistema que permite que as mensagens de um utilizador
-# cheguem a todos os outros instantaneamente.
-
 
 def subscribe(page, handler):
     """
-    Subscreve este utilizador para receber mensagens.
-
-    Como funciona:
-        - Cada utilizador que abre a app "subscreve" o canal
-        - Quando alguém envia uma mensagem, o PubSub chama o 'handler'
-          de TODOS os subscritores automaticamente
-
-    Parâmetros:
-        page    - a página Flet deste utilizador
-        handler - a função que vai ser chamada quando chegar uma mensagem
+    Subscreve este utilizador para receber mensagens globais.
+    Usado para avisos de sistema (ex: nova sala criada).
     """
     page.pubsub.subscribe(handler)
 
 
+def subscribe_to_room(page, room_id, handler):
+    """
+    Subscreve este utilizador ao tópico de uma sala específica.
+    Só recebe mensagens dessa sala.
+
+    Parâmetros:
+        room_id - o id da sala (ex: "sala-geral")
+        handler - função chamada quando chega mensagem nesta sala
+    """
+    page.pubsub.subscribe_topic(room_id, handler)
+
+
+def unsubscribe_from_room(page, room_id):
+    """
+    Cancela a subscrição de uma sala.
+    Chamada quando o utilizador muda de sala.
+    """
+    page.pubsub.unsubscribe_topic(room_id)
+
+
 def unsubscribe(page):
     """
-    Cancela a subscrição quando o utilizador fecha a app.
-    Importante para não continuar a receber mensagens desnecessariamente.
+    Cancela todas as subscrições quando o utilizador fecha a app.
     """
     page.pubsub.unsubscribe_all()
 
 
 def broadcast(page, message):
     """
-    Envia uma mensagem para TODOS os utilizadores subscritos.
-
-    Parâmetros:
-        page    - a página Flet de quem está a enviar
-        message - objeto Message com os dados da mensagem
+    Envia uma mensagem para TODOS os utilizadores ligados.
+    Usado para avisos globais (ex: nova sala criada).
     """
     page.pubsub.send_all(message)
+
+
+def broadcast_to_room(page, room_id, message):
+    """
+    Envia uma mensagem APENAS para os utilizadores da sala.
+
+    Parâmetros:
+        room_id - o id da sala de destino
+        message - objeto Message a enviar
+    """
+    page.pubsub.send_all_on_topic(room_id, message)
