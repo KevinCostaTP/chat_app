@@ -51,7 +51,7 @@ def MessageBubble(message, current_user):
                         src=message.file_path,
                         width=240,
                         height=180,
-                        fit=ft.ImageFit.COVER,
+                        fit="cover",
                         border_radius=8,
                     ),
                     border_radius=8,

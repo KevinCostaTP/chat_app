@@ -25,11 +25,6 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.padding = 0
 
-    # FilePicker adicionado ao overlay UMA VEZ e nunca removido
-    file_picker = ft.FilePicker()
-    
-    
-
     def show_chat(e):
         if not username_field.value.strip():
             username_field.error_text = "Escolhe um nome para continuar"
@@ -58,14 +53,13 @@ def main(page: ft.Page):
             current_room_ref[0] = room
             current_private_ref[0] = private_user
 
-            # Limpa só os controls da página, NÃO o overlay
             page.controls.clear()
             page.vertical_alignment = ft.MainAxisAlignment.START
 
             if private_user:
-                chat = ChatView(page, user, private_user=private_user, file_picker=file_picker)
+                chat = ChatView(page, user, private_user=private_user)
             else:
-                chat = ChatView(page, user, current_room=room, file_picker=file_picker)
+                chat = ChatView(page, user, current_room=room)
 
             sidebar = Sidebar(
                 page=page,

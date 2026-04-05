@@ -68,26 +68,62 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None, 
         new_message.value = ""
         page.update()
 
-    def on_file_picked(e):
-        if not e.files:
-            return
+    def show_file_dialog(e):
+        """
+        Mostra um dialog onde o utilizador cola o caminho do ficheiro.
+        Funciona sempre em modo web sem problemas.
+        """
+        path_field = ft.TextField(
+            label="Caminho do ficheiro",
+            hint_text="Ex: C:\\Users\\...\\imagem.jpg",
+            expand=True,
+            autofocus=True,
+            border_radius=8,
+        )
 
-        picked_file = e.files[0]
-        saved_path = file_service.save_file(picked_file.path)
+        def send_file(e):
+            path = path_field.value.strip()
+            if not path:
+                path_field.error_text = "Insere o caminho do ficheiro"
+                page.update()
+                return
 
-        if saved_path:
-            send_message(None, file_path=saved_path)
-        else:
-            page.snack_bar = ft.SnackBar(
-                content=ft.Text("Erro ao enviar ficheiro. Tenta novamente."),
-                bgcolor=ft.Colors.RED_400,
-            )
-            page.snack_bar.open = True
+            saved_path = file_service.save_file(path)
+            if saved_path:
+                dialog.open = False
+                page.update()
+                send_message(None, file_path=saved_path)
+            else:
+                path_field.error_text = "Ficheiro não encontrado. Verifica o caminho."
+                page.update()
+
+        def close_dialog(e):
+            dialog.open = False
             page.update()
 
-  
-  
-    file_picker.on_result = on_file_picked
+        dialog = ft.AlertDialog(
+            title=ft.Text("Enviar ficheiro"),
+            content=ft.Column(
+                controls=[
+                    ft.Text(
+                        "Cola o caminho completo do ficheiro abaixo:",
+                        size=13,
+                        color=ft.Colors.GREY_600,
+                    ),
+                    path_field,
+                ],
+                tight=True,
+                spacing=12,
+            ),
+            actions=[
+                ft.TextButton("Cancelar", on_click=close_dialog),
+                ft.TextButton("Enviar", on_click=send_file),
+            ],
+        )
+
+        page.overlay.append(dialog)
+        dialog.open = True
+        page.update()
 
     send_button = ft.IconButton(
         icon=ft.Icons.SEND,
@@ -100,10 +136,7 @@ def ChatView(page: ft.Page, current_user, current_room=None, private_user=None, 
         icon=ft.Icons.ATTACH_FILE,
         icon_color=ft.Colors.GREY_600,
         tooltip="Enviar ficheiro",
-        on_click=lambda e: file_picker.pick_files(
-            dialog_title="Escolhe um ficheiro",
-            allow_multiple=False,
-        ),
+        on_click=show_file_dialog,
     )
 
     if is_private:
