@@ -7,22 +7,13 @@ import uuid
 
 @dataclass
 class Message:
-    """
-    Representa uma mensagem enviada no chat.
-
-    Atributos:
-        username  - quem enviou
-        text      - conteúdo de texto (pode ser vazio se for só ficheiro)
-        room_id   - sala ou tópico privado
-        msg_type  - "chat" ou "login"
-        file_path - caminho do ficheiro enviado (None se não houver)
-        id        - identificador único
-        timestamp - quando foi enviada
-    """
     username: str
     text: str
     room_id: str = "geral"
-    msg_type: str = "chat"
-    file_path: str = None        # novo campo para ficheiros
+    msg_type: str = "chat"  # chat, login, edit, delete, react, sticker
+    file_path: str = None
+    is_edited: bool = False
+    is_deleted: bool = False
+    reactions: dict = field(default_factory=dict)  # {emoji: [username, ...]}
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)

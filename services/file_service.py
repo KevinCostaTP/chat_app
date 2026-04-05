@@ -14,20 +14,15 @@ def ensure_uploads_dir():
 def save_file(source_path: str) -> str:
     try:
         source = Path(source_path)
-
         if not source.exists():
             return None
-
         destination = UPLOADS_DIR / source.name
-
         counter = 1
         while destination.exists():
             destination = UPLOADS_DIR / f"{source.stem}_{counter}{source.suffix}"
             counter += 1
-
         shutil.copy2(source_path, destination)
         return str(destination)
-
     except Exception as e:
         print(f"Erro ao guardar ficheiro: {e}")
         return None

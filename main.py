@@ -41,6 +41,7 @@ def main(page: ft.Page):
         current_private_ref = [None]
 
         def rebuild_layout(room=None, private_user=None):
+            # Cancela subscrições anteriores
             if current_room_ref[0] is not None:
                 pubsub_service.unsubscribe_from_room(page, current_room_ref[0].id)
             if current_private_ref[0] is not None:

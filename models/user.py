@@ -1,14 +1,7 @@
 # models/user.py
 
 class User:
-    """
-    Representa um utilizador ligado à aplicação.
-
-    Atributos:
-        username     - o nome escolhido pelo utilizador
-        avatar_color - a cor do avatar (círculo colorido com a inicial do nome)
-    """
-
-    def __init__(self, username: str, avatar_color: str):
+    def __init__(self, username: str, avatar_color: str, status: str = "disponivel"):
         self.username = username
         self.avatar_color = avatar_color
+        self.status = status  # disponivel, ocupado, ausente
